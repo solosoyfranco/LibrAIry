@@ -27,6 +27,14 @@ case "$ACTION" in
   apply)
     /opt/inbox/apply_rmlint.sh
     ;;
+  dedupe)
+    # always (re)plan first so we act on fresh data
+    /opt/inbox/plan_rmlint.sh "${INBOX_ARR[@]}" -- "${LIB_ARR[@]}"
+    /opt/inbox/apply_exact_dupes.sh
+    /opt/inbox/purge_quarantine.sh || true
+    /opt/inbox/summarize_reports.sh || true
+    ;;
   *)
     echo "Unknown ACTION=$ACTION"; exit 2;;
+    
 esac

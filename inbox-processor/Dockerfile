@@ -16,7 +16,9 @@ ENV INBOX_DIRS="/data/inbox" \
     REPORTS_DIR="/data/reports" \
     LOGS_DIR="/data/logs" \
     ACTION="plan" \
+    QUARANTINE_DIR="/data/quarantine/duplicates" \
+    QUARANTINE_RETENTION_DAYS="30" \
+    DELETE_INSTEAD_OF_QUARANTINE="false" \
     DISCORD_WEBHOOK_URL=""
 
 ENTRYPOINT ["/opt/inbox/pipeline.sh"]
-
