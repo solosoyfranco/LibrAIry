@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # ---- paths & inputs
-REPORTS_DIR="${REPORTS_DIR:-/reports}"          # your binds decide the real host paths
-LOGS_DIR="${LOGS_DIR:-/logs}"
+REPORTS_DIR="${REPORTS_DIR:-/data/reports}"          # your binds decide the real host paths
+LOGS_DIR="${LOGS_DIR:-/data/logs}"
 JSON="${REPORTS_DIR}/rmlint.json"
 
 # ---- policy / safety
-QUARANTINE_DIR="${QUARANTINE_DIR:-/quarantine/duplicates}"
+QUARANTINE_DIR="${QUARANTINE_DIR:-/data/quarantine/duplicates}"
 RETENTION_DAYS="${QUARANTINE_RETENTION_DAYS:-30}"
 DELETE_INSTEAD="${DELETE_INSTEAD_OF_QUARANTINE:-false}"
 ONLY_MOVE_FROM_INBOX="${ONLY_MOVE_FROM_INBOX:-true}"   # protect library by default
