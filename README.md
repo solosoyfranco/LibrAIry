@@ -56,9 +56,25 @@ It transforms messy **inbox folders** into clean, deduplicated, AI-organized **l
    - **Paperless-ngx** ingests documents  
    - **Immich** manages photos & videos  
 
-6. **Backup policy**  
-   - `/ROM/library` → nightly `restic` backup (secondary NAS, and cloud backup)  
-   - `/RAM/library` → no backup, Plex reads directly  
+6. **Backup policy**
+   - `/ROM/library` → nightly `restic` backup (secondary NAS, and cloud backup)
+   - `/RAM/library` → no backup, Plex reads directly
+
+---
+
+## Getting Started
+
+The `inbox-processor` image in this repository already wires together the rmlint
+planning, safe apply scripts, quarantine handling, and reporting described above.
+
+- Read the step-by-step [setup guide](docs/setup-guide.md) for build/run
+  instructions tailored to NAS platforms.
+- A ready-to-edit Compose example lives at
+  [`examples/docker-compose.yml`](examples/docker-compose.yml) so you can plug in
+  your own inbox/library mounts quickly.
+- The helper scripts emit JSON reports and summaries under `/data/reports`; pair
+  them with tools like File Browser or TagSpaces for review before applying
+  changes.
 
 ---
 

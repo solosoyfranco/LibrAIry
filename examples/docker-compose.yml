@@ -1,0 +1,22 @@
+services:
+  inbox-processor:
+    build: ../inbox-processor
+    container_name: librairy-inbox-processor
+    restart: "no"
+    environment:
+      ACTION: plan
+      INBOX_DIRS: /data/ram/inbox:/data/rom/inbox
+      LIBRARY_DIRS: /data/ram/library:/data/rom/library
+      REPORTS_DIR: /data/reports
+      LOGS_DIR: /data/logs
+      QUARANTINE_DIR: /data/quarantine/duplicates
+      QUARANTINE_RETENTION_DAYS: "30"
+      DISCORD_WEBHOOK_URL: ""
+    volumes:
+      - /mnt/user/RAM/inbox:/data/ram/inbox:rw
+      - /mnt/user/ROM/inbox:/data/rom/inbox:rw
+      - /mnt/user/RAM/library:/data/ram/library:ro
+      - /mnt/user/ROM/library:/data/rom/library:ro
+      - ./reports:/data/reports:rw
+      - ./logs:/data/logs:rw
+      - ./quarantine:/data/quarantine:rw
