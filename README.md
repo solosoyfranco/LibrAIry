@@ -42,8 +42,8 @@ It transforms messy **inbox folders** into clean, deduplicated, AI-organized **l
    - iPhone backups, Win/Mac backups, photos, docs → `/ROM/inbox`
 
 2. **Processing**  
-   - `rmlint` → exact duplicates (JSON + safe apply script)  
-   - `czkawka-cli` → similar images/videos (JSON report)  
+   - `rmlint` → automatically deletes exact duplicates (moves them into quarantine for safety - 30 days)  
+   - `czkawka-cli` → handles similar files, with identical ones deleted automatically, and near-duplicates flagged for review (especially photos/videos)  
    - `LlamaFS` → AI rename/move proposals (via Ollama (local LLM) or ChatGPT)  
 
 3. **Review (UI)**
@@ -96,8 +96,9 @@ It transforms messy **inbox folders** into clean, deduplicated, AI-organized **l
 
 ## Idea
 
-- **Safe-first** → nothing deletes automatically; dupes replaced by hardlinks  
-- **Human in loop** → AI only proposes; you approve  
+- **Exact duplicates** are auto-removed or quarantined for safety  
+- **Near-duplicates** go to human review, especially photos/videos  
+- **Human in loop** → AI only proposes renaming/sorting; you approve  
 - **Extensible** → add more tools (ffprobe, exiftool, rdfind) easily  
 - **Future proof** → runs in Docker now, migrates to Kubernetes later  
 
