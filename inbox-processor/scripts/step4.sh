@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================
-# 📦 STEP 4 — MOVE FILES (with bundle and JSON support)
+# 📦 STEP 4 — MOVE FILES (bundle-aware + category routes)
 # ============================================================
 
 REPORTS_DIR="/data/reports"
@@ -16,135 +16,83 @@ REPORT_FILE="$REPORTS_DIR/step3_summary.json"
 mkdir -p "$REPORTS_DIR"
 
 if [[ ! -f "$REPORT_FILE" ]]; then
-  echo "❌ step3_summary.json not found in $REPORTS_DIR"
+  echo "❌ step3_summary.json missing — nothing to move."
   exit 1
 fi
 
 echo "============================================================" | tee "$LOG_FILE"
 echo "📦 [step4] Starting file relocation at $(date)" | tee -a "$LOG_FILE"
-echo "Using AI report: $REPORT_FILE" | tee -a "$LOG_FILE"
 echo "============================================================" | tee -a "$LOG_FILE"
 
 : > /tmp/moved.json
 : > /tmp/skipped.json
 : > /tmp/failed.json
 
-trim() { echo "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
 normalize_name() {
-  local base="$1"
-  base="$(echo "$base" | tr '[:upper:]' '[:lower:]')"
-  base="$(echo "$base" | sed 's/[^a-z0-9._-]/_/g; s/__/_/g; s/_$//; s/^_//')"
-  echo "$base"
+  echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/_/g; s/__/_/g; s/_$//; s/^_//'
 }
 
-# --- Handle bundle folders ----------------------------------
+# --- Move bundle folders ------------------------------------
 jq -c '.[] | select(.bundle_files)' "$REPORT_FILE" | while IFS= read -r bundle; do
-  folder=$(echo "$bundle" | jq -r '.original_path')
-  clean_name=$(echo "$bundle" | jq -r '.proposed_name')
-  dest_dir="$LIBRARY_DIR/RAM/Movies/$clean_name"
-
-  echo "🎬 Moving media bundle: $folder → $dest_dir" | tee -a "$LOG_FILE"
-  mkdir -p "$(dirname "$dest_dir")"
-  if mv -v -- "$folder" "$dest_dir" 2>>"$LOG_FILE"; then
-    echo "{\"from\":\"$folder\",\"to\":\"$dest_dir\",\"bundle\":true}" >> /tmp/moved.json
+  src=$(echo "$bundle" | jq -r '.original_path')
+  dest_name=$(echo "$bundle" | jq -r '.proposed_name')
+  cat=$(echo "$bundle" | jq -r '.category')
+  case "$cat" in
+    VideoBundle) dest="$LIBRARY_DIR/RAM/Movies/$dest_name" ;;
+    PhotoAlbum) dest="$LIBRARY_DIR/ROM/Photos/Albums/$dest_name" ;;
+    MusicAlbum) dest="$LIBRARY_DIR/ROM/Music/Albums/$dest_name" ;;
+    ModelBundle) dest="$LIBRARY_DIR/ROM/Models/Bundles/$dest_name" ;;
+    DocumentSet) dest="$LIBRARY_DIR/ROM/Documents/Sets/$dest_name" ;;
+    ArchiveCollection) dest="$LIBRARY_DIR/ROM/Archives/Collections/$dest_name" ;;
+    *) dest="$LIBRARY_DIR/ROM/Misc/$dest_name" ;;
+  esac
+  echo "🎞️ Moving $cat: $src → $dest" | tee -a "$LOG_FILE"
+  mkdir -p "$(dirname "$dest")"
+  if mv -v -- "$src" "$dest" >>"$LOG_FILE" 2>&1; then
+    echo "{\"from\":\"$src\",\"to\":\"$dest\",\"bundle\":true,\"category\":\"$cat\"}" >> /tmp/moved.json
   else
-    echo "{\"error\":\"bundle_move_failed\",\"folder\":\"$folder\"}" >> /tmp/failed.json
+    echo "{\"error\":\"bundle_move_failed\",\"path\":\"$src\"}" >> /tmp/failed.json
   fi
 done
-
-# --- Scan inbox files ---------------------------------------
-echo "🔍 Scanning inbox for remaining individual files..." | tee -a "$LOG_FILE"
-mapfile -d '' existing_files < <(find "$INBOX_DIR" -type f -print0 2>/dev/null)
-echo "📁 Found ${#existing_files[@]} total files." | tee -a "$LOG_FILE"
-echo "---" | tee -a "$LOG_FILE"
 
 # --- Move individual files ----------------------------------
 jq -c '.[] | select(.bundle_files | not)' "$REPORT_FILE" | while IFS= read -r item; do
-  original_path=$(echo "$item" | jq -r '.original_path // empty')
-  proposed_name=$(echo "$item" | jq -r '.proposed_name // empty')
-  category=$(echo "$item" | jq -r '.category // empty')
-  subfolder_hint=$(echo "$item" | jq -r '.subfolder_hint // empty')
+  src=$(echo "$item" | jq -r '.original_path')
+  name=$(echo "$item" | jq -r '.proposed_name')
+  cat=$(echo "$item" | jq -r '.category')
+  [[ ! -f "$src" ]] && { echo "{\"error\":\"missing\",\"path\":\"$src\"}" >> /tmp/skipped.json; continue; }
 
-  [[ -z "$original_path" || -z "$proposed_name" ]] && {
-    echo "{\"error\":\"missing_fields\",\"entry\":$item}" >> /tmp/skipped.json
-    continue
-  }
-
-  decoded_path="${original_path//%20/ }"
-  filename="$(trim "$(basename "$decoded_path")")"
-  found_file=""
-  for f in "${existing_files[@]}"; do
-    [[ "$(trim "$(basename "$f")")" == "$filename" ]] && { found_file="$f"; break; }
-  done
-
-  if [[ -z "$found_file" ]]; then
-    echo "⚠️ File not found, skipping: $filename" | tee -a "$LOG_FILE"
-    echo "{\"error\":\"file_not_found\",\"filename\":\"$filename\"}" >> /tmp/skipped.json
-    continue
-  fi
-
-  # --- Destination logic ------------------------------------
-  case "${category,,}" in
-    note) dest_dir="$LIBRARY_DIR/ROM/Notes" ;;
-    document) dest_dir="$LIBRARY_DIR/ROM/Documents" ;;
-    config) dest_dir="$LIBRARY_DIR/ROM/Configs" ;;
-    photo|image) dest_dir="$LIBRARY_DIR/ROM/Photos" ;;
-    music|audio) dest_dir="$LIBRARY_DIR/ROM/Music" ;;
-    video|movie) dest_dir="$LIBRARY_DIR/RAM/Movies" ;;
-    archive) dest_dir="$LIBRARY_DIR/ROM/Archives" ;;
-    model) dest_dir="$LIBRARY_DIR/ROM/Models" ;;
-    *) dest_dir="$LIBRARY_DIR/ROM/Misc" ;;
+  case "${cat,,}" in
+    text|document) dest_base="$LIBRARY_DIR/ROM/Documents" ;;
+    image|photo) dest_base="$LIBRARY_DIR/ROM/Photos" ;;
+    audio|music) dest_base="$LIBRARY_DIR/ROM/Music" ;;
+    video) dest_base="$LIBRARY_DIR/RAM/Movies" ;;
+    model) dest_base="$LIBRARY_DIR/ROM/Models" ;;
+    config) dest_base="$LIBRARY_DIR/ROM/Configs" ;;
+    archive) dest_base="$LIBRARY_DIR/ROM/Archives" ;;
+    *) dest_base="$LIBRARY_DIR/ROM/Misc" ;;
   esac
 
-  if [[ -n "$subfolder_hint" && "$subfolder_hint" != "null" ]]; then
-    clean_hint="$(normalize_name "$subfolder_hint")"
-    dest_dir="$dest_dir/$clean_hint"
-  fi
-  mkdir -p "$dest_dir"
-
-  dest_path="$dest_dir/$proposed_name"
-  counter=1; base="${proposed_name%.*}"; ext="${proposed_name##*.}"
-  while [[ -e "$dest_path" ]]; do
-    dest_path="${dest_dir}/${base}_${counter}.${ext}"
-    ((counter++))
+  mkdir -p "$dest_base"
+  dest="$dest_base/$name"
+  i=1; base="${name%.*}"; ext="${name##*.}"
+  while [[ -e "$dest" ]]; do
+    dest="${dest_base}/${base}_${i}.${ext}"; ((i++))
   done
 
-  echo "📁 Moving: $filename → $dest_path" | tee -a "$LOG_FILE"
-  if mv -v -- "$found_file" "$dest_path" 2>>"$LOG_FILE"; then
-    echo "{\"from\":\"$found_file\",\"to\":\"$dest_path\",\"category\":\"$category\"}" >> /tmp/moved.json
+  echo "📁 Moving: $src → $dest" | tee -a "$LOG_FILE"
+  if mv -v -- "$src" "$dest" >>"$LOG_FILE" 2>&1; then
+    echo "{\"from\":\"$src\",\"to\":\"$dest\",\"category\":\"$cat\"}" >> /tmp/moved.json
   else
-    echo "{\"error\":\"move_failed\",\"file\":\"$found_file\"}" >> /tmp/failed.json
+    echo "{\"error\":\"move_failed\",\"path\":\"$src\"}" >> /tmp/failed.json
   fi
-  echo "---" | tee -a "$LOG_FILE"
 done
 
-# --- Generate summary ---------------------------------------
+# --- Cleanup empty folders ----------------------------------
+find "$INBOX_DIR" -type d -empty -delete
+echo "[step4] 🧹 Cleaned up empty folders in inbox." | tee -a "$LOG_FILE"
+
+# --- Build summary ------------------------------------------
 moved_json=$(jq -s '.' /tmp/moved.json 2>/dev/null || echo "[]")
 skipped_json=$(jq -s '.' /tmp/skipped.json 2>/dev/null || echo "[]")
 failed_json=$(jq -s '.' /tmp/failed.json 2>/dev/null || echo "[]")
-
-jq -n \
-  --arg date "$(date -Iseconds)" \
-  --arg report "$REPORT_FILE" \
-  --argjson moved "$moved_json" \
-  --argjson skipped "$skipped_json" \
-  --argjson failed "$failed_json" \
-  '{
-    timestamp: $date,
-    source_report: $report,
-    summary: {
-      moved: ($moved|length),
-      skipped: ($skipped|length),
-      failed: ($failed|length)
-    },
-    moved_files: $moved,
-    skipped_files: $skipped,
-    failed_files: $failed
-  }' > "$SUMMARY_JSON"
-
-echo "🧾 Summary JSON written to $SUMMARY_JSON" | tee -a "$LOG_FILE"
-ARCHIVE_FILE="${REPORT_FILE%.json}_processed_$(date +%H-%M-%S).json"
-mv "$REPORT_FILE" "$ARCHIVE_FILE"
-echo "🗂️ Archived step3 report → $ARCHIVE_FILE" | tee -a "$LOG_FILE"
-echo "📊 STEP 4 COMPLETE ✅" | tee -a "$LOG_FILE"
-echo "============================================================"
