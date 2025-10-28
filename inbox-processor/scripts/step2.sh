@@ -48,7 +48,8 @@ fi
 sed -i 's/\r$//' "$TEMP_REPORT" 2>/dev/null || true
 
 # Count files by looking for quoted file paths
-dupes_count=$(grep -c '^"/' "$TEMP_REPORT" 2>/dev/null || echo 0)
+dupes_count=$(grep -cE '^---- Size' "$TEMP_REPORT" 2>/dev/null | tr -d '\r' | tr -d '\n')
+dupes_count=${dupes_count:-0}
 if [[ "$dupes_count" -eq 0 ]]; then
   echo "[step2] No duplicates detected by czkawka. ✅" | tee -a "$LOG_FILE"
   # Clean up temp file immediately
@@ -174,14 +175,18 @@ total_files=$(find "$QUARANTINE_TODAY" -type f 2>/dev/null | wc -l || echo 0)
 total_size=$(du -sh "$QUARANTINE_TODAY" 2>/dev/null | awk '{print $1}' || echo "0B")
 avail=$(df -h "$QUARANTINE_DIR" 2>/dev/null | awk 'NR==2{print $4}' || echo "unknown")
 
-# Create the JSON report (using first script's format)
+# Ensure group_data is valid JSON (fallback to empty array)
+if ! echo "$group_data" | jq empty >/dev/null 2>&1; then
+  group_data="[]"
+fi
+
 jq -n \
   --arg date "$(date -Iseconds)" \
-  --argjson found "$dupes_count" \
-  --argjson moved "$moved" \
+  --argjson found "${dupes_count:-0}" \
+  --argjson moved "${moved:-0}" \
   --arg quarantine "$QUARANTINE_TODAY" \
-  --arg size "${total_size}" \
-  --arg free "${avail}" \
+  --arg size "$total_size" \
+  --arg free "$avail" \
   --argjson groups "$group_data" \
   '{
     timestamp: $date,
@@ -191,11 +196,28 @@ jq -n \
     quarantine_size: $size,
     disk_free: $free,
     duplicate_groups: $groups
-  }' > "$REPORT_JSON"
+  }' > "$REPORT_JSON" || {
+    echo "[step2] ❌ Failed to write JSON summary (bad data)" | tee -a "$LOG_FILE"
+    group_data="[]"
+    jq -n \
+      --arg date "$(date -Iseconds)" \
+      --argjson found "${dupes_count:-0}" \
+      --argjson moved "${moved:-0}" \
+      --arg quarantine "$QUARANTINE_TODAY" \
+      --arg size "$total_size" \
+      --arg free "$avail" \
+      '{
+        timestamp: $date,
+        duplicates_found: $found,
+        files_quarantined: $moved,
+        quarantine_dir: $quarantine,
+        quarantine_size: $size,
+        disk_free: $free,
+        duplicate_groups: []
+      }' > "$REPORT_JSON"
+  }
 
 echo "[step2] ✅ JSON summary written to $REPORT_JSON" | tee -a "$LOG_FILE"
-echo "[step2] Quarantined $moved files into $QUARANTINE_TODAY 🧺" | tee -a "$LOG_FILE"
-echo "[step2] Quarantine summary: $total_files files, total size $total_size, disk free $avail 💾" | tee -a "$LOG_FILE"
 
 # --- Step 6: Cleanup and finalize ---
 # Remove the temporary report file
