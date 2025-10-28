@@ -18,6 +18,7 @@ docker start -ai devbox
 
 ### install:
   apt update
+  apt install iputils-ping -y
 apt install -y rmlint jq coreutils
 # step2
 apt update && apt install -y jq wget
@@ -49,8 +50,6 @@ apt install -y pkg-config libdav1d-dev libaom-dev libavif-dev libheif-dev -->
 cp target/release/czkawka_cli /usr/local/bin/
 chmod +x /usr/local/bin/czkawka_cli
 
-######## is working but step2summary is empty
-  
 ## run:
 chmod +x /workspace/inbox-processor/scripts/step1.sh
 /workspace/inbox-processor/scripts/step1.sh 
