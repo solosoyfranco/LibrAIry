@@ -14,7 +14,7 @@ LOG_FILE="${LOG_FILE:-/tmp/step2.log}"
 DATE_TAG=$(date +%Y-%m-%d)
 QUARANTINE_TODAY="${QUARANTINE_DIR}/${DATE_TAG}"
 REPORT_JSON="${REPORTS_DIR}/step2_summary.json"
-TEMP_REPORT="${REPORTS_DIR}/czkawka_duplicates_${DATE_TAG}.txt"
+TEMP_REPORT="${REPORTS_DIR}/step2_duplicates_${DATE_TAG}.txt"
 
 ALLOWED_EXT="jpg,png,jpeg,gif,bmp,heic,avif,mp4,mkv,mov,avi,mp3,flac,wav,ogg,txt,pdf,docx"
 
@@ -45,7 +45,7 @@ if [[ ! -s "$TEMP_REPORT" ]]; then
 fi
 
 sed -i 's/\r$//' "$TEMP_REPORT"
-dupes_count=$(grep -cE '^---- Size' "$TEMP_REPORT" || echo 0)
+dupes_count=$(grep -cE '^---- Size' "$TEMP_REPORT" | tr -dc '0-9' || echo 0)
 echo "[step2] Found $dupes_count duplicate entries." | tee -a "$LOG_FILE"
 
 moved=0

@@ -1,118 +1,122 @@
-# 📂 LibrAIry
-*An AI-powered librarian for your digital clutter.*
+# LibrAIry  
+**AI‑Powered File Organization & Library Manager**
 
-> **Note:** This repository is the **project plan (in progress)** for LibrAIry.  
-> The vision is to build an AI-powered file workflow that can run on **any NAS platform** (Unraid, TrueNAS, Synology, etc.) using Docker or Kubernetes.  
-> I personally run this on **Unraid**, but the design is portable.
+LibrAIry automates large‑scale file reorganization by combining:
+- AI analysis (via local model)  
+- Metadata & fingerprinting  
+- Structured move‑planning  
+with a simple Bash pipeline.
 
----
-
-## Project Idea
-
-**LibrAIry** is a self-hosted **file organization workflow** designed for NAS and homelabs.  
-It transforms messy **inbox folders** into clean, deduplicated, AI-organized **libraries** ready for Plex, Jellyfin, Paperless-ngx, Immich, and more.
+Whether you've got random files, downloads, media assets, or a growing document stash — LibrAIry helps you turn it into an organised, searchable library.
 
 ---
 
-## Folder Analogy
+## 🚀 Why LibrAIry?
+
+- **Smart classification** — Files and folders are analysed and grouped logically (photos, videos, 3D models, music, documents, etc).  
+- **AI‑driven suggestions** — A local AI helps determine destination, renaming, category and structure.  
+- **Dry‑run safe** — Preview exactly what will move/rename before anything changes.  
+- **Supports massive/chaotic collections** — Recovers order from inboxes, archives, or mixed dumps.  
+- **Extensible pipeline** — Easily drop in further steps: fingerprinting duplicates, metadata enrichment, clean‑up.
+
+---
+
+## 🧩 Core Pipeline
+
+| Step | Script | Purpose |
+|------|--------|---------|
+| 1 | `step1_scan.sh` | Scans `/data/inbox`, identifies duplicates, generates report. |
+| 2 | `step2_hash_audio_video.sh` | Optional: generate audio/video fingerprints for deep dup detection. |
+| 3 | `step3_classify.sh` | AI classifies each item: bundle type, rename, destination. |
+| 4 | `step4_dryrun.sh` | Dry run: shows “Would move” list based on AI output. |
+| 5| `step5_commit.sh` | Actually moves/renames files and logs summary. |
+
+---
+
+## 📂 Directory Layout
 
 ```
-/mnt/user/RAM/          # Non-critical, ephemeral media
-    inbox/              # New unsorted files
-    staging/            # Where dedupe + AI run
-    library/            # Final organized Plex/Jellyfin dirs
-    quarantine/         # Unknowns or flagged items
-
-/mnt/user/ROM/          # Critical backups & memories
-    inbox/
-    staging/
-    library/
-    quarantine/
+/data
+  ├─ inbox/         # incoming un‑organised files/folders
+  ├─ library/       # target organised library root
+  ├─ reports/       # JSON & logs from each step
+  └─ quarantine/    # files flagged for review or duplicates
 ```
 
-- **RAM** → Movies, shows, ISOs, tutorials (no backup, Plex-ready)
-- **ROM** → Backups, documents, photos, memories (backed up + indexed)
+---
+
+## 🧑‍💻 Quick Start
+
+```bash
+git clone https://github.com/solosoyfranco/LibrAIry.git
+cd LibrAIry
+
+# In Docker or dev container:
+docker run -it   --name devbox   -v "$PWD":/workspace   -v "$HOME/Desktop/inbox-test":/data   debian:bookworm-slim bash
+
+# Install dependencies (inside container):
+apt update && apt install -y jq curl wget git coreutils iputils-ping rmlint ffmpeg
+
+# Clone & build Czkawka (optional for duplicates)
+# (see full instructions in INSTRUCTIONS.md)
+
+# Make scripts executable:
+cd scripts && chmod +x *.sh
+
+# Run the pipeline:
+./step1_scan.sh
+./step2_hash_audio_video.sh
+./step3_classify.sh
+./step4_dryrun.sh
+
+# Inspect dry‑run output. If satisfied:
+./step5_commit.sh
+```
 
 ---
 
-## Workflow Plan
+## 📊 What the AI Output Looks Like
 
-1. **Drop files**  
-   - Plex downloads → `/RAM/inbox`  
-   - iPhone backups, Win/Mac backups, photos, docs → `/ROM/inbox`
+A snippet of the JSON report produced in step 3 (`step3_summary.json`):
 
-2. **Processing**  
-   - `rmlint` → automatically deletes exact duplicates (moves them into quarantine for safety - 30 days)  
-   - `czkawka-cli` → handles similar files, with identical ones deleted automatically, and near-duplicates flagged for review (especially photos/videos)  
-   - `LlamaFS` → AI rename/move proposals (via Ollama (local LLM) or ChatGPT)  
-
-3. **Review (UI)**
-   - Get alert (gotify, discord, telegram, etc)
-   - Review reports in **File Browser** or **TagSpaces**  
-   - Approve & run safe apply script → moves to `library/`
-
-5. **Indexing & search**  
-   - **Recoll WebUI** auto-indexes libraries for full-text search  
-   - **Paperless-ngx** ingests documents  
-   - **Immich** manages photos & videos  
-
-6. **Backup policy**  
-   - `/ROM/library` → nightly `restic` backup (secondary NAS, and cloud backup)  
-   - `/RAM/library` → no backup, Plex reads directly  
+```json
+{
+  "bundle_type": "PhotoAlbum",
+  "suggested_name": "unsorted",
+  "recommended_path": "/data/library/ROM/Photos/Unsorted",
+  "reasoning": "single image without context",
+  "subfolder_plan": { "enabled": false },
+  "files": [
+    {
+      "original_name": "img_5661.jpeg",
+      "category": "image",
+      "rename_to": null
+    }
+  ],
+  "source_path": "/data/inbox/img_5661.jpeg"
+}
+```
 
 ---
 
-## Integrations
+## 🎯 License & Contribution
 
-- **Plex / Jellyfin** → media libraries
-- **Paperless-ngx** → OCR & document management
-- **Immich** → photo/video management
-- **TagSpaces** → tagging & visual file browsing
-- **Recoll WebUI** → full-text search engine
-- **Ollama / ChatGPT** → AI rename/move proposals
-- **Discord** → nightly reports & alerts
-- **n8n** → optional workflow automation glue
+LibrAIry is released under the **MIT License**.  
+Contributions welcome — please open issues/PRs for new features, bug fixes or better AI prompt fine‑tuning.
 
 ---
 
-## Checklist (Project Plan)
+## 🪄 Future Vision
 
-- [ ] Create Docker container with `rmlint` + `czkawka-cli`
-- [ ] Add reporting pipeline (JSON + summaries)
-- [ ] Add Discord webhook for alerts
-- [ ] Add `LlamaFS` for AI rename/move proposals
-- [ ] Build safe apply scripts (`apply_rmlint.sh`, `apply_llamafs.py`)
-- [ ] Integrate with File Browser for human review
-- [ ] Mount into Plex/Jellyfin (RAM)
-- [ ] Mount into Paperless-ngx (ROM Documents)
-- [ ] Mount into Immich (ROM Photos)
-- [ ] Add Recoll WebUI for search
-- [ ] Add restic backup jobs for ROM
-- [ ] Add project tag system (`!projectName/` auto-routing)
-- [ ] Package as public Docker image (multi-arch: amd64 + arm64)
-- [ ] Publish documentation and setup guides
+- Deep duplicate detection via audio/video fingerprinting  
+- Metadata enrichment (music tags, video resolution, photo EXIF)  
+- UI/WEB dashboard for managing and visualising your library  
+- Cloud/NAS integration (sync, index, search)  
 
 ---
 
-## Idea
-
-- **Exact duplicates** are auto-removed or quarantined for safety  
-- **Near-duplicates** go to human review, especially photos/videos  
-- **Human in loop** → AI only proposes renaming/sorting; you approve  
-- **Extensible** → add more tools (ffprobe, exiftool, rdfind) easily  
-- **Future proof** → runs in Docker now, migrates to Kubernetes later  
-
----
-
-## 📜 License
-
-MIT — free to use, fork, and improve.
-
----
 
 ## 💡 Credits
 
 - [rmlint](https://github.com/sahib/rmlint) — duplicate finder  
 - [czkawka](https://github.com/qarmin/czkawka) — similar image/video finder  
-- [LlamaFS](https://github.com/iyaja/llama-fs) — AI file renamer/sorter  
-- [TagSpaces](https://www.tagspaces.org/), [Recoll](https://www.lesbonscomptes.com/recoll/), [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx), [Immich](https://github.com/immich-app/immich)
